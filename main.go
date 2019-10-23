@@ -72,7 +72,7 @@ func (app *app) Start() error {
 	}
 
 	if networkSocketType == "unix" {
-		if err := syscall.Unlink(app.config.Address); err != nil {
+		if err := syscall.Unlink(app.config.Address); err != nil && !os.IsNotExist(err) {
 			log.Fatalf("error when unlinking %s: %s", app.config.Address, err.Error())
 		}
 	}
