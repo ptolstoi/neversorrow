@@ -5,5 +5,5 @@ type Config struct {
 
 	Version        string
 	BuildTime      string
-	ShowStacktrace string
+	ShowStacktrace bool
 }

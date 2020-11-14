@@ -64,13 +64,13 @@ func (ctx *requestContext) Error(err error) {
 	case errors.Error:
 		err := err.(errors.Error)
 		statusCode = err.StatusCode()
-		if ctx.app.Config().ShowStacktrace == "" {
+		if ctx.app.Config().ShowStacktrace {
 			stacktrace = err.Stacktrace()
 		}
 	}
 
+	ctx.w.Header().Set("content-type", "application/json")
 	ctx.w.WriteHeader(statusCode)
-	ctx.w.Header().Add("content-type", "application/json")
 	json.NewEncoder(ctx.w).Encode(struct {
 		Error      string   `json:"error"`
 		Message    string   `json:"message"`
@@ -83,6 +83,6 @@ func (ctx *requestContext) Error(err error) {
 }
 
 func (ctx *requestContext) ResponseWithJSON(v interface{}) {
-	ctx.w.Header().Add("content-type", "application/json")
+	ctx.w.Header().Set("content-type", "application/json")
 	json.NewEncoder(ctx.w).Encode(v)
 }

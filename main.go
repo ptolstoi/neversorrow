@@ -26,7 +26,7 @@ type App interface {
 	Stop() error
 	Close() error
 
-	RunUntilSignal() App
+	RunUntilSignal() (App, error)
 
 	OnStart(OnHandler) App
 	OnStop(OnHandler) App
@@ -46,7 +46,15 @@ type app struct {
 	serveHTTPHandler OnServeHTTPHandler
 }
 
-func New(config Config) App {
+func New(config Config) (App, error) {
+	if strings.TrimSpace(config.Address) == "" {
+		return nil, fmt.Errorf("address must not be empty")
+	} else if strings.TrimSpace(config.BuildTime) == "" {
+		return nil, fmt.Errorf("BuildTime must not be empty")
+	} else if strings.TrimSpace(config.Version) == "" {
+		return nil, fmt.Errorf("Version must not be empty")
+	}
+
 	app := app{
 		config: config,
 
@@ -58,7 +66,7 @@ func New(config Config) App {
 	}
 
 	app.router.NotFound = app.NotFound()
-	return &app
+	return &app, nil
 }
 
 func (app *app) Config() Config {
@@ -89,7 +97,9 @@ func (app *app) Start() error {
 		}
 
 		log.Printf("listening on %s%v\n", prefix, listener.Addr())
-		app.http.Serve(listener)
+		if err := app.http.Serve(listener); err != nil && err != http.ErrServerClosed {
+			log.Printf("error when listening: %v", err)
+		}
 	}()
 
 	app.emit("start")
@@ -142,7 +152,7 @@ func (app *app) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			}{
 				Version:        app.config.Version,
 				BuildTime:      app.config.BuildTime,
-				ShowStacktrace: app.config.ShowStacktrace == "",
+				ShowStacktrace: app.config.ShowStacktrace,
 			})
 			return
 		}
@@ -185,19 +195,23 @@ func (app *app) OnServeHTTP(fn OnServeHTTPHandler) App {
 	return app
 }
 
-func (app *app) RunUntilSignal() App {
+func (app *app) RunUntilSignal() (App, error) {
+	err := app.Start()
+	if err != nil {
+		return nil, err
+	}
 	defer app.Close()
-
-	app.Start()
 
 	stopChannel := make(chan os.Signal, 1)
 	signal.Notify(stopChannel, os.Interrupt, os.Kill, syscall.SIGTERM)
 
 	<-stopChannel
 
-	app.Stop()
+	if err := app.Stop(); err != nil {
+		return nil, err
+	}
 
-	return app
+	return app, nil
 }
 
 func (app *app) AddRoute(method, route string, handler OnServeHTTPHandler) App {
